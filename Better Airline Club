@@ -1,0 +1,553 @@
+// ==UserScript==
+// @name         Better Airline Club
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  try to take over the world!
+// @author       Aphix/Torus
+// @match        https://*.airline-club.com/
+// @icon         https://www.google.com/s2/favicons?domain=airline-club.com
+// @grant        none
+// ==/UserScript==
+
+function launch(){
+    'use strict';
+
+    var plotUnitEnum = window.plotUnitEnum = {
+        "MONTH": {
+            "value": 1,
+            "maxWeek": 104,
+            "weeksPerMark": 4,
+            "maxMark": 28
+        },
+        "QUARTER": {
+            "value": 2,
+            "maxWeek": 208,
+            "weeksPerMark": 8,
+            "maxMark": 52
+        }
+    }
+
+    window.commaSeparateNumberForLinks = function commaSeparateNumberForLinks(val){
+        var isNegative = val < 0
+
+        var over1k = val > 1000 || val < -1000;
+
+        if (val !== 0) {
+            var withDecimal = Math.abs(over1k ? val / 1000 : val);
+            var remainderTenths = Math.round((withDecimal % 1) * 10) / 10;
+            val = Math.floor(withDecimal) + remainderTenths;
+
+            //val = Math.abs(val)
+            while (/(\d+)(\d{3})/.test(val.toString())){
+                val = val.toString().replace(/(\d+)(\d{3})/, '$1'+','+'$2');
+            }
+        }
+
+        var valWithSuffix = over1k ? val + 'k' : val;
+
+        return (isNegative ? ('(' + valWithSuffix + ')') : valWithSuffix);
+    }
+
+
+
+    window.updateCustomLinkTableHeader = function updateCustomLinkTableHeader() {
+        if ($('#linksTableSortHeader').children().length === 15) {
+            return;
+        }
+
+        $('#linksCanvas .mainPanel').css({width: '62%'});
+        $('#linksCanvas .sidePanel').css({width: '38%'});
+
+        $('#canvas .mainPanel').css({width: '62%'});
+        $('#canvas .sidePanel').css({width: '38%'});
+
+        const widths = [
+            8,
+            8,
+            8,
+            7,
+            9,
+            5,
+            5,
+            5,
+            9,
+            8,
+            6,
+            6,
+            7,
+            7,
+            2, //tiers, 1st
+        ];
+
+        const sum = widths.reduce((acc, val) => acc + val, 0);
+        if (sum !== 100) {
+            console.warn(`Column widths to not add up to 100: ${sum} (${widths.join(',')}) -- ${sum < 100 ? 'Remaining' : 'Over by'}: ${sum < 100 ? 100 - sum : sum - 100}%`)
+        }
+
+
+        $('#linksTableSortHeader').html(`
+        <div class="cell clickable" style="width: ${widths[14]}%" data-sort-property="tiersRank" data-sort-order="descending" onclick="toggleLinksTableSortOrder($(this))" title="Aggregated Rank">#</div>
+        <div class="cell clickable" style="width: ${widths[0]}%" data-sort-property="fromAirportCode" data-sort-order="descending" onclick="toggleLinksTableSortOrder($(this))">From</div>
+        <div class="cell clickable" style="width: 0%" data-sort-property="lastUpdate" data-sort-order="ascending" id="hiddenLinkSortBy"></div> <!--hidden column for last update (cannot be first otherwise the left round corner would not work -->
+        <div class="cell clickable" style="width: ${widths[1]}%" data-sort-property="toAirportCode" data-sort-order="descending" onclick="toggleLinksTableSortOrder($(this))">To</div>
+        <div class="cell clickable" style="width: ${widths[2]}%" data-sort-property="model" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">Model</div>
+        <div class="cell clickable" style="width: ${widths[3]}%" align="right" data-sort-property="distance" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">Dist.</div>
+        <div class="cell clickable" style="width: ${widths[4]}%" align="right" data-sort-property="totalCapacity" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">Capacity (Freq.)</div>
+        <div class="cell clickable" style="width: ${widths[5]}%" align="right" data-sort-property="totalPassengers" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">Pax</div>
+        <div class="cell clickable" style="width: ${widths[6]}%" align="right" data-sort-property="totalLoadFactor" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))" title="Load Factor">LF</div>
+        <div class="cell clickable" style="width: ${widths[7]}%" align="right" data-sort-property="satisfaction" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))" title="Satisfaction Factor">SF</div>
+        <div class="cell clickable" style="width: ${widths[8]}%" align="right" data-sort-property="revenue" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">Revenue</div>
+        <div class="cell clickable selected" style="width: ${widths[9]}%" align="right" data-sort-property="profit" data-sort-order="descending" onclick="toggleLinksTableSortOrder($(this))">Profit</div>
+        <div class="cell clickable" style="width: ${widths[10]}%" align="right" data-sort-property="profitMargin" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">Gain</div>
+        <div class="cell clickable" style="width: ${widths[11]}%" align="right" data-sort-property="profitPerPax" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">$/🧍</div>
+        <div class="cell clickable" style="width: ${widths[12]}%" align="right" data-sort-property="profitPerFlight" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">$/✈</div>
+        <div class="cell clickable" style="width: ${widths[13]}%" align="right" data-sort-property="profitPerHour" data-sort-order="ascending" onclick="toggleLinksTableSortOrder($(this))">$/⏲</div>
+    `);
+        $('#linksTable .table-header').html(`
+        <div class="cell" style="width: ${widths[14]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[0]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[1]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[2]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[3]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[4]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[5]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[6]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[7]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[8]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[9]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[10]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[11]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[12]}%; border-bottom: none;"></div>
+        <div class="cell" style="width: ${widths[13]}%; border-bottom: none;"></div>
+    `);
+    }
+
+
+    window.loadLinksTable = function loadLinksTable() {
+        var url = "airlines/" + activeAirline.id + "/links-details"
+        $.ajax({
+            type: 'GET',
+            url: url,
+            contentType: 'application/json; charset=utf-8',
+            dataType: 'json',
+            success: function(links) {
+                updateCustomLinkTableHeader();
+                updateLoadedLinks(links);
+                $.each(links, function(key, link) {
+                    link.totalCapacity = link.capacity.economy + link.capacity.business + link.capacity.first
+                    link.totalCapacityHistory = link.capacityHistory.economy + link.capacityHistory.business + link.capacityHistory.first
+                    link.totalPassengers = link.passengers.economy + link.passengers.business + link.passengers.first
+                    link.totalLoadFactor = link.totalCapacityHistory > 0 ? Math.round(link.totalPassengers / link.totalCapacityHistory * 100) : 0
+                    var assignedModel
+                    if (link.assignedAirplanes && link.assignedAirplanes.length > 0) {
+                        assignedModel = link.assignedAirplanes[0].airplane.name
+                    } else {
+                        assignedModel = "-"
+                    }
+                    link.model = assignedModel //so this can be sorted
+
+                    link.profitMarginPercent = link.revenue === 0
+                        ? 0
+                    : ((link.profit + link.revenue) / link.revenue) * 100;
+
+                    link.profitMargin = link.profitMarginPercent > 100
+                        ? link.profitMarginPercent - 100
+                    : (100 - link.profitMarginPercent) * -1;
+
+                    link.profitPerPax = link.totalPassengers === 0
+                        ? 0
+                    :link.profit / link.totalPassengers;
+
+                    link.profitPerFlight = link.profit / link.frequency;
+                    link.profitPerHour = link.profit / link.duration;
+
+                    //console.dir(link);
+                })
+
+                var selectedSortHeader = $('#linksTableSortHeader .cell.selected')
+                updateLinksTable(selectedSortHeader.data('sort-property'), selectedSortHeader.data('sort-order'))
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error(JSON.stringify(jqXHR));
+                console.error("AJAX error: " + textStatus + ' : ' + errorThrown);
+            }
+        });
+    }
+
+
+
+    function getShortModelName(airplaneName) {
+        var sections = airplaneName.trim().split(' ').slice(1);
+
+        return sections
+            .map(str => (str.includes('-')
+                         || str.length < 4
+                         || /^[A-Z0-9\-]+[a-z]{0,4}$/.test(str))
+                 ? str
+                 : str[0].toUpperCase())
+            .join(' ');
+    }
+
+    function getStyleFromPercent(tier) {
+        const stylesFromGoodToBad = [
+            'color:#29FF66;',
+            'color:#5AB874;',
+            'color:#FF6969;',
+
+            'color:inherit;',
+
+            //'color:#FF3D3D;',
+            //'color:#B30E0E;text-shadow:0px 0px 2px #CCC;',
+
+            'color:#FA8282;',
+            'color:#FF3D3D;font-weight: bold;',
+            // 'color:#FF3D3D;text-decoration:underline',
+        ];
+
+
+        return stylesFromGoodToBad[tier];
+    }
+
+    function getTierFromPercent(val, min = 0, max = 100) {
+        var availableRange = max - min;
+        var ranges = [
+            .95,
+            .80,
+            .75,
+            .6,
+            .5
+        ].map(multiplier => (availableRange * multiplier) + min);
+
+        var tier;
+        if (val > ranges[0]) {
+            return 0;
+        } else if (val > ranges[1]) {
+            return 1;
+        } else if (val > ranges[2]) {
+            return 2;
+        } else if (val > ranges[3]) {
+            return 3;
+        } else if (val > ranges[4]) {
+            return 4;
+        }
+
+        return 5;
+    }
+
+    var colorKeyMaps = {};
+    window.updateLinksTable = function updateLinksTable(sortProperty, sortOrder) {
+        var linksTable = $("#linksCanvas #linksTable")
+        linksTable.children("div.table-row").remove()
+
+        loadedLinks = sortPreserveOrder(loadedLinks, sortProperty, sortOrder == "ascending")
+
+        function getKeyedStyleFromLink(link, keyName, ...args) {
+            if (!colorKeyMaps[keyName]) {
+                colorKeyMaps[keyName] = new WeakMap();
+            } else if (colorKeyMaps[keyName].has(link)) {
+                return colorKeyMaps[keyName].get(link);
+            }
+
+            var data = loadedLinks.map(l => l[keyName]);
+
+            var avg = data.reduce((sum, acc) => sum += acc, 0) / loadedLinks.length;
+            var max = Math.max(...data);
+            var min = Math.max(Math.min(...data), 0);
+
+
+            var tier = getTierFromPercent(link[keyName], args[0] !== undefined ? args[0] : min, args[1] || (avg * .618));
+            if (!link.tiers) {
+                link.tiers = {};
+            }
+
+            link.tiers[keyName] = tier;
+
+            var colorResult = getStyleFromPercent(tier);
+
+            colorKeyMaps[keyName].set(link, colorResult);
+
+            return colorResult;
+        }
+
+        $.each(loadedLinks, function(index, link) {
+            var row = $("<div class='table-row clickable' onclick='selectLinkFromTable($(this), " + link.id + ")'></div>")
+
+            var srcAirportFull = getAirportText(link.fromAirportCity, link.fromAirportCode);
+            var destAirportFull = getAirportText(link.toAirportCity, link.toAirportCode);
+
+            //                 COMMENT one set or the other to test both:
+            // Truncated
+            //
+            row.append("<div class='cell' title='"+ srcAirportFull +"'>" + getCountryFlagImg(link.fromCountryCode) + ' ' + srcAirportFull.slice(-4, -1) + "</div>")
+            row.append("<div class='cell' title='"+ destAirportFull +"'>" + getCountryFlagImg(link.toCountryCode) + ' ' + destAirportFull.slice(-4, -1) + "</div>")
+            //
+            //    OR
+            //
+            // Original/Full airport names
+            //
+            //row.append("<div class='cell'>" + getCountryFlagImg(link.fromCountryCode) + ' ' + srcAirportFull + "</div>")
+            //row.append("<div class='cell'>" + getCountryFlagImg(link.toCountryCode) + ' ' + destAirportFull + "</div>")
+            //
+            //    OR
+            //
+            // Reversed, IATA/ICAO first w/ truncation
+            //
+            //row.append("<div class='cell' style='text-overflow: ellipsis;overflow: hidden;white-space: pre;' title='"+ srcAirportFull +"'>" + getCountryFlagImg(link.fromCountryCode) + ' ' + srcAirportFull.slice(-4, -1) + ' | ' + srcAirportFull.slice(0, -5) + "</div>")
+            //row.append("<div class='cell' style='text-overflow: ellipsis;overflow: hidden;white-space: pre;' title='"+ destAirportFull +"'>" + getCountryFlagImg(link.toCountryCode) + ' ' + destAirportFull.slice(-4, -1) + ' | ' + destAirportFull.slice(0, -5) + "</div>")
+            //
+
+            row.append("<div class='cell' style='text-overflow: ellipsis;overflow: hidden;white-space: pre;'>" + getShortModelName(link.model) + "</div>")
+            row.append("<div class='cell' align='right'>" + link.distance + "km</div>")
+            row.append("<div class='cell' align='right'>" + link.totalCapacity + " (" + link.frequency + ")</div>")
+            row.append("<div class='cell' align='right'>" + link.totalPassengers + "</div>")
+            row.append("<div style='"+getKeyedStyleFromLink(link, 'totalLoadFactor', 0, 100)+"' class='cell' align='right'>" + link.totalLoadFactor + '%' + "</div>")
+            row.append("<div style='"+getKeyedStyleFromLink(link, 'satisfaction', 0, 1)+"' class='cell' align='right'>" + Math.round(link.satisfaction * 100) + '%' + "</div>")
+            row.append("<div style='"+getKeyedStyleFromLink(link, 'revenue')+"'  class='cell' align='right' title='$"+ commaSeparateNumber(link.revenue) +"'>" + '$' + commaSeparateNumberForLinks(link.revenue) + "</div>")
+            row.append("<div style='"+getKeyedStyleFromLink(link, 'profit')+"'  class='cell' align='right' title='$"+ commaSeparateNumber(link.profit) +"'>" + '$' + commaSeparateNumberForLinks(link.profit) +"</div>")
+
+            //row.append("<div style='color:"+textColor+";' class='cell' align='right'>" + (link.profitMargin > 0 ? '+' : '') + Math.round(link.profitMargin) + "%</div>")
+            row.append("<div style='"+getKeyedStyleFromLink(link, 'profitMarginPercent', 0, 136.5)+"' class='cell' align='right'>" + (link.profitMargin > 0 ? '+' : '') + Math.round(link.profitMargin) + "%</div>")
+
+            row.append("<div style='"+getKeyedStyleFromLink(link, 'profitPerPax')+"' class='cell' align='right' title='$"+ commaSeparateNumber(link.profitPerPax) +"'>" + '$' + commaSeparateNumberForLinks(link.profitPerPax) + "</div>")
+            row.append("<div style='"+getKeyedStyleFromLink(link, 'profitPerFlight')+"' class='cell' align='right' title='$"+ commaSeparateNumber(link.profitPerFlight) +"'>" + '$' + commaSeparateNumberForLinks(link.profitPerFlight) + "</div>")
+            row.append("<div style='"+getKeyedStyleFromLink(link, 'profitPerHour')+"' class='cell' align='right' title='$"+ commaSeparateNumber(link.profitPerHour) +"'>" + '$' + commaSeparateNumberForLinks(link.profitPerHour) + "</div>")
+
+            if (selectedLink == link.id) {
+                row.addClass("selected")
+            }
+
+            const tiersRank = link.tiersRank = Object.keys(link.tiers).reduce((sum, key) => sum + link.tiers[key] + (key === 'profit' && link.tiers[key] === 0 ? -1 : 0), 0);
+
+            row.prepend("<div class='cell'>" + link.tiersRank + "</div>")
+
+            if (tiersRank < 2) {
+                row.css({'text-shadow': '0 0 3px gold'});
+            }
+
+            if (tiersRank > 27) {
+                row.css({'text-shadow': '0 0 3px red'});
+            }
+
+            linksTable.append(row)
+        });
+    }
+
+    window.refreshLinkDetails = function refreshLinkDetails(linkId) {
+        var airlineId = activeAirline.id
+
+        $("#linkCompetitons .data-row").remove()
+        $("#actionLinkId").val(linkId)
+
+        //load link
+        $.ajax({
+            type: 'GET',
+            url: "airlines/" + airlineId + "/links/" + linkId,
+            contentType: 'application/json; charset=utf-8',
+            dataType: 'json',
+            success: function(link) {
+                $("#linkFromAirport").attr("onclick", "showAirportDetails(" + link.fromAirportId + ")").html(getCountryFlagImg(link.fromCountryCode) + getAirportText(link.fromAirportCity, link.fromAirportCode))
+                //$("#linkFromAirportExpectedQuality").attr("onclick", "loadLinkExpectedQuality(" + link.fromAirportId + "," + link.toAirportId + "," + link.fromAirportId + ")")
+                $("#linkToAirport").attr("onclick", "showAirportDetails(" + link.toAirportId + ")").html(getCountryFlagImg(link.toCountryCode) + getAirportText(link.toAirportCity, link.toAirportCode))
+                //$("#linkToAirportExpectedQuality").attr("onclick", "loadLinkExpectedQuality(" + link.fromAirportId + "," + link.toAirportId + "," + link.toAirportId + ")")
+                $("#linkFlightCode").text(link.flightCode)
+                if (link.assignedAirplanes && link.assignedAirplanes.length > 0) {
+                    $('#linkAirplaneModel').text(link.assignedAirplanes[0].airplane.name + "(" + link.assignedAirplanes.length + ")")
+                } else {
+                    $('#linkAirplaneModel').text("-")
+                }
+                $("#linkCurrentPrice").text(toLinkClassValueString(link.price, "$"))
+                $("#linkDistance").text(link.distance + " km (" + link.flightType + ")")
+                $("#linkQuality").html(getGradeStarsImgs(Math.round(link.computedQuality / 10)) + link.computedQuality)
+                $("#linkCurrentCapacity").text(toLinkClassValueString(link.capacity))
+                if (link.future) {
+                    $("#linkCurrentDetails .future .capacity").text(toLinkClassValueString(link.future.capacity))
+                    $("#linkCurrentDetails .future").show()
+                } else {
+                    $("#linkCurrentDetails .future").hide()
+                }
+                $("#linkCurrentDetails").show()
+                $("#linkToAirportId").val(link.toAirportId)
+                $("#linkFromAirportId").val(link.fromAirportId)
+
+                //load competition
+                $.ajax({
+                    type: 'GET',
+                    url: "airports/" + link.fromAirportId + "/to/" + link.toAirportId,
+                    contentType: 'application/json; charset=utf-8',
+                    dataType: 'json',
+                    success: function(linkConsumptions) {
+                        $("#linkCompetitons .data-row").remove()
+                        $.each(linkConsumptions, function(index, linkConsumption) {
+                            var row = $("<div class='table-row data-row'><div style='display: table-cell;'>" + linkConsumption.airlineName
+                                                                        + "</div><div style='display: table-cell;'>" + toLinkClassValueString(linkConsumption.price, "$")
+                                                                        + "</div><div style='display: table-cell; text-align: right;'>" + toLinkClassValueString(linkConsumption.capacity)
+                                                                        + "</div><div style='display: table-cell; text-align: right;'>" + linkConsumption.quality
+                                                                        + "</div><div style='display: table-cell; text-align: right;'>" + linkConsumption.frequency + "</div></div>")
+
+                            if (linkConsumption.airlineId == airlineId) {
+                                $("#linkCompetitons .table-header").after(row) //self is always on top
+                            } else {
+                                $("#linkCompetitons").append(row)
+                            }
+
+                        })
+                        if ($("#linkCompetitons .data-row").length == 0) {
+                            $("#linkCompetitons").append("<div class='table-row data-row'><div style='display: table-cell;'>-</div><div style='display: table-cell;'>-</div><div style='display: table-cell;'>-</div><div style='display: table-cell;'>-</div><div style='display: table-cell;'>-</div></div>")
+                        }
+                        $("#linkCompetitons").show()
+
+                        assignAirlineColors(linkConsumptions, "airlineId")
+                        plotPie(linkConsumptions, null, $("#linkCompetitionsPie"), "airlineName", "soldSeats")
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        console.log(JSON.stringify(jqXHR));
+                        console.log("AJAX error: " + textStatus + ' : ' + errorThrown);
+                    }
+                });
+
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                    console.log(JSON.stringify(jqXHR));
+                    console.log("AJAX error: " + textStatus + ' : ' + errorThrown);
+            }
+        });
+
+        var plotUnit = $("#linkDetails #switchMonth").is(':checked') ? plotUnitEnum.MONTH : plotUnitEnum.QUARTER
+        var cycleCount = plotUnit.maxWeek
+
+        //load history
+        $.ajax({
+            type: 'GET',
+            url: "airlines/" + airlineId + "/link-consumptions/" + linkId + "?cycleCount=" + cycleCount,
+            contentType: 'application/json; charset=utf-8',
+            dataType: 'json',
+            success: function(linkConsumptions) {
+                if (jQuery.isEmptyObject(linkConsumptions)) {
+                    $("#linkHistoryPrice").text("-")
+                    $("#linkHistoryCapacity").text("-")
+                    $("#linkLoadFactor").text("-")
+                    $("#linkProfit").text("-")
+                    $("#linkRevenue").text("-")
+                    $("#linkFuelCost").text("-")
+                    $("#linkCrewCost").text("-")
+                    $("#linkAirportFees").text("-")
+                    $("#linkDepreciation").text("-")
+                    $("#linkCompensation").text("-")
+                    $("#linkLoungeCost").text("-")
+                    $("#linkServiceSupplies").text("-")
+                    $("#linkMaintenance").text("-")
+                    $("#linkOtherCosts").text("-")
+                    $("#linkDelays").text("-")
+                    $("#linkCancellations").text("-")
+
+                    disableButton($("#linkDetails .button.viewLinkHistory"), "Passenger Map is not yet available for this route - please wait for the simulation (time estimation on top left of the screen).")
+                    disableButton($("#linkDetails .button.viewLinkComposition"), "Passenger Survey is not yet available for this route - please wait for the simulation (time estimation on top left of the screen).")
+                } else {
+                    var linkConsumption = linkConsumptions[0]
+                    $("#linkHistoryPrice").text(toLinkClassValueString(linkConsumption.price, "$"))
+                    $("#linkHistoryCapacity").text(toLinkClassValueString(linkConsumption.capacity))
+
+                    function getFactorPercent(consumption, subType) {
+                        return (consumption.capacity[subType] > 0)
+                            ? parseInt(consumption.soldSeats[subType] / consumption.capacity[subType] * 100)
+                            : null;
+                    }
+
+                    function getLoadFactorsFor(consumption) {
+                        var factor = {};
+                        for (let key in consumption.capacity) {
+                            factor[key] = getFactorPercent(consumption, key) || '-';
+                        }
+                        return factor;
+                    }
+
+                    function _seekSubVal(val, ...subKeys) {
+                        if (subKeys.length === 0) {
+                            return val;
+                        }
+                        return _seekSubVal(val[subKeys[0]], ...subKeys.slice(1));
+                    }
+
+                    function averageFromSubKey(array, ...subKeys) {
+                        return array.map(obj => _seekSubVal(obj, ...subKeys)).reduce((sum, val) => sum += (val || 0), 0) / array.length;
+                    }
+
+                    var loadFactor = getLoadFactorsFor(linkConsumption);
+
+                    var averageLoadFactor = getLoadFactorsFor({
+                        soldSeats: {
+                            economy: averageFromSubKey(linkConsumptions, 'soldSeats', 'economy'),
+                            business: averageFromSubKey(linkConsumptions, 'soldSeats', 'business'),
+                            first: averageFromSubKey(linkConsumptions, 'soldSeats', 'first'),
+                        },
+                        capacity: {
+                            economy: averageFromSubKey(linkConsumptions, 'capacity', 'economy'),
+                            business: averageFromSubKey(linkConsumptions, 'capacity', 'business'),
+                            first: averageFromSubKey(linkConsumptions, 'capacity', 'first'),
+                        }
+                    });
+
+                    if (!$("#linkAverageLoadFactor").length) {
+                        $("#linkLoadFactor").parent().after(`<div class="table-row" style="color:#999">
+                            <div class="label" style="color:#999"><h5>Avg. Load Factor:</h5></div>
+                            <div class="value" id="linkAverageLoadFactor"></div>
+                        </div>`)
+                    }
+
+                    if (!$("#linkAverageProfit").length) {
+                        $("#linkProfit").parent().after(`<div class="table-row" style="color:#999">
+                            <div class="label" style="color:#999"><h5>Avg. Profit:</h5></div>
+                            <div class="value" id="linkAverageProfit"></div>
+                        </div>`)
+                    }
+
+                    $("#linkLoadFactor").text(toLinkClassValueString(loadFactor, "", "%"))
+                    $("#linkAverageLoadFactor").text(toLinkClassValueString(averageLoadFactor, "", "%"))
+
+                    $("#linkProfit").text("$" + commaSeparateNumber(linkConsumption.profit))
+
+                    var avgProfit = Math.round(averageFromSubKey(linkConsumptions, 'profit'));
+                    $("#linkAverageProfit").text("$" + commaSeparateNumber(avgProfit))
+
+                    $("#linkRevenue").text("$" + commaSeparateNumber(linkConsumption.revenue))
+                    $("#linkFuelCost").text("$" + commaSeparateNumber(linkConsumption.fuelCost))
+                    $("#linkCrewCost").text("$" + commaSeparateNumber(linkConsumption.crewCost))
+                    $("#linkAirportFees").text("$" + commaSeparateNumber(linkConsumption.airportFees))
+                    $("#linkDepreciation").text("$" + commaSeparateNumber(linkConsumption.depreciation))
+                    $("#linkCompensation").text("$" + commaSeparateNumber(linkConsumption.delayCompensation))
+                    $("#linkLoungeCost").text("$" + commaSeparateNumber(linkConsumption.loungeCost))
+                    $("#linkServiceSupplies").text("$" + commaSeparateNumber(linkConsumption.inflightCost))
+                    $("#linkMaintenance").text("$" + commaSeparateNumber(linkConsumption.maintenanceCost))
+                    if (linkConsumption.minorDelayCount == 0 && linkConsumption.majorDelayCount == 0) {
+                        $("#linkDelays").removeClass("warning")
+                        $("#linkDelays").text("-")
+                    } else {
+                        $("#linkDelays").addClass("warning")
+                        $("#linkDelays").text(linkConsumption.minorDelayCount + " minor " + linkConsumption.majorDelayCount + " major")
+                    }
+
+                    if (linkConsumption.cancellationCount == 0) {
+                        $("#linkCancellations").removeClass("warning")
+                        $("#linkCancellations").text("-")
+                    } else {
+                        $("#linkCancellations").addClass("warning")
+                        $("#linkCancellations").text(linkConsumption.cancellationCount)
+                    }
+                    enableButton($("#linkDetails .button.viewLinkHistory"))
+                    enableButton($("#linkDetails .button.viewLinkComposition"))
+                }
+                plotLinkCharts(linkConsumptions, plotUnit)
+                $("#linkHistoryDetails").show()
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                    console.log(JSON.stringify(jqXHR));
+                    console.log("AJAX error: " + textStatus + ' : ' + errorThrown);
+            }
+        });
+        setActiveDiv($("#linkDetails"))
+        hideActiveDiv($("#extendedPanel #airplaneModelDetails"))
+        $('#sidePanel').fadeIn(200);
+    }
+};
+
+$(document).ready(() => setTimeout(() => launch(), 1000));

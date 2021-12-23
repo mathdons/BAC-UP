@@ -339,9 +339,10 @@ async function _updateLatestOilPriceInHeader() {
 
     if (!$('.topBarDetails .latestOilPriceShortCut').length) {
         $('.topBarDetails .delegatesShortcut').after(`
-            <span style="margin: 0px 10px"  title="Latest Oil Price" class="latestOilPriceShortCut clickable" onclick="showOilCanvas()">
+            <span style="margin: 0px 10px; padding: 0 5px"  title="Latest Oil Price" class="latestOilPriceShortCut clickable" onclick="showOilCanvas()">
                 <span class="latest-price label" style=""></span>
-            </span>`);
+            </span>
+        `);
     }
 
     const tierForPrice = 5 - getTierFromPercent(latestPrice, 40, 80);

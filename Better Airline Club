@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Better Airline Club
 // @namespace    http://tampermonkey.net/
-// @version      1.0.2
+// @version      1.0.3
 // @description  try to take over the world!
 // @author       Aphix/Torus
 // @match        https://*.airline-club.com/
@@ -105,7 +105,7 @@ function getShortModelName(airplaneName) {
         .join(' ');
 }
 
-function getStyleFromPercent(tier) {
+function getStyleFromTier(tier) {
     const stylesFromGoodToBad = [
         'color:#29FF66;',
         'color:#5AB874;',
@@ -333,6 +333,38 @@ async function loadLink(airlineId, linkId) {
     };
 }
 
+async function _updateLatestOilPriceInHeader() {
+    const oilPrices = await _request('oil-prices');
+    const latestPrice = oilPrices.slice(-1)[0].price;
+
+    if (!$('.topBarDetails .latestOilPriceShortCut').length) {
+        $('.topBarDetails .delegatesShortcut').after(`
+            <span style="margin: 0px 10px"  title="Latest Oil Price" class="latestOilPriceShortCut clickable" onclick="showOilCanvas()">
+                <span class="latest-price label" style=""></span>
+            </span>`);
+    }
+
+    const tierForPrice = 5 - getTierFromPercent(latestPrice, 40, 80);
+
+    if (tierForPrice < 2) {
+        $('.latestOilPriceShortCut')
+            .addClass('glow')
+            .addClass('button');
+    } else {
+        $('.latestOilPriceShortCut')
+            .removeClass('glow')
+            .removeClass('button');
+    }
+
+    $('.topBarDetails .latest-price')
+        .text('$'+commaSeparateNumber(latestPrice))
+        .attr({style: getStyleFromTier(tierForPrice)});
+
+    setTimeout(() => {
+        _updateLatestOilPriceInHeader();
+    }, Math.round(Math.max(durationTillNextTick / 2, 30000)));
+}
+
 function commaSeparateNumberForLinks(val) {
     const over1k = val > 1000 || val < -1000;
 
@@ -481,7 +513,7 @@ function launch(){
 
             link.tiers[keyName] = tier;
 
-            var colorResult = getStyleFromPercent(tier);
+            var colorResult = getStyleFromTier(tier);
 
             colorKeyMaps[keyName].set(link, colorResult);
 
@@ -566,6 +598,8 @@ function launch(){
 
         const { link, linkCompetition, linkHistory } = await linkDetailsPromise; // link details loaded if needed for something later
     }
+
+    _updateLatestOilPriceInHeader();
 };
 
 $(document).ready(() => setTimeout(() => launch(), 1000));

@@ -368,6 +368,7 @@ async function _updateLatestOilPriceInHeader() {
 
 function commaSeparateNumberForLinks(val) {
     const over1k = val > 1000 || val < -1000;
+    const isNegative = (val < 0);
 
     if (val !== 0) {
         const withDecimal = Math.abs(over1k ? val / 1000 : val);
@@ -381,7 +382,7 @@ function commaSeparateNumberForLinks(val) {
 
     const valWithSuffix = over1k ? val + 'k' : val;
 
-    return (val < 0) ? '(' + valWithSuffix + ')' : valWithSuffix;
+    return isNegative ? '(' + valWithSuffix + ')' : valWithSuffix;
 }
 
 function launch(){

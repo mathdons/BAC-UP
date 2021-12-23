@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Better Airline Club
 // @namespace    http://tampermonkey.net/
-// @version      1.0.1
+// @version      1.0.2
 // @description  try to take over the world!
 // @author       Aphix/Torus
 // @match        https://*.airline-club.com/
@@ -109,14 +109,13 @@ function getStyleFromPercent(tier) {
     const stylesFromGoodToBad = [
         'color:#29FF66;',
         'color:#5AB874;',
-        'color:#FF6969;',
-
         'color:inherit;',
 
+        'color:#FA8282;',
         //'color:#FF3D3D;',
         //'color:#B30E0E;text-shadow:0px 0px 2px #CCC;',
 
-        'color:#FA8282;',
+        'color:#FF6969;',
         'color:#FF3D3D;font-weight: bold;',
         // 'color:#FF3D3D;text-decoration:underline',
     ];

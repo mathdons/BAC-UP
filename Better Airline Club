@@ -349,11 +349,11 @@ async function _updateLatestOilPriceInHeader() {
 
     if (tierForPrice < 2) {
         $('.latestOilPriceShortCut')
-            .addClass('glow')
+            //.addClass('glow')
             .addClass('button');
     } else {
         $('.latestOilPriceShortCut')
-            .removeClass('glow')
+            //.removeClass('glow')
             .removeClass('button');
     }
 

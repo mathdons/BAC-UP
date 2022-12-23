@@ -1323,5 +1323,7 @@ $("#airplaneModelDetails #speed").parent().after(`
     <div class="label">&#8205;</div>
 </div>`);
 
+$('body').attr({style:'background: rgb(83, 85, 113);'});
+
 console.log("Plane score script loaded");
 

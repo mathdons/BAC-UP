@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Better Airline Club + Cost Per PAX Combined & Improved
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      0.1.0
 // @description  try to take over the world!
-// @author       Aphix/Torus (original cost per PAX by Alrianne)
+// @author       Aphix/Torus (original cost per PAX by Alrianne), mdons
 // @match        https://*.airline-club.com/
 // @icon         https://www.google.com/s2/favicons?domain=airline-club.com
 // @grant        none

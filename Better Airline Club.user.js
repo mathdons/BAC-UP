@@ -1,11 +1,13 @@
 // ==UserScript==
-// @name         Better Airline Club + Cost Per PAX Combined & Improved
+// @name         BAC-UP
 // @namespace    http://tampermonkey.net/
 // @version      0.1.0
 // @description  try to take over the world!
 // @author       Aphix/Torus (original cost per PAX by Alrianne), mdons
 // @match        https://*.airline-club.com/
 // @icon         https://www.google.com/s2/favicons?domain=airline-club.com
+// @downloadURL  https://github.com/mathdons/BAC-UP/raw/master/Better%20Airline%20Club.user.js
+// @updateURL    https://raw.githubusercontent.com/mathdons/Airline-Club-Tweaks/main/AirlineClubTweaks.user.js
 // @grant        none
 // ==/UserScript==
 

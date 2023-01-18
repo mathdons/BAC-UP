@@ -861,7 +861,7 @@
 
 	function calcFuelBurn(plane, distance) {
 		let timeFlight = calcFlightTime(plane, distance);
-		if (timeFlight > 1.5) {
+		if (timeFlight > 90) {
 			return plane.fuelBurn * (405 + timeFlight);
 		} else {
 			return plane.fuelBurn * timeFlight * 5.5;
